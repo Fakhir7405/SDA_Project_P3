@@ -1,0 +1,136 @@
+@startuml P3_Sequence_Diagram
+
+skinparam backgroundColor #0d1117
+skinparam sequenceArrowColor #58a6ff
+skinparam sequenceLifeLineBorderColor #30363d
+skinparam sequenceLifeLineBackgroundColor #161b22
+skinparam participantBackgroundColor #161b22
+skinparam participantBorderColor #30363d
+skinparam participantFontColor #e6edf3
+skinparam participantFontName Consolas
+skinparam noteBackgroundColor #1c2128
+skinparam noteBorderColor #30363d
+skinparam noteFontColor #8b949e
+skinparam sequenceDividerBackgroundColor #1c2128
+skinparam sequenceDividerFontColor #e6edf3
+skinparam sequenceGroupBackgroundColor #1c2128
+skinparam sequenceGroupBorderColor #30363d
+skinparam titleFontColor #e6edf3
+skinparam titleFontSize 16
+
+title Phase 3 — Generic Concurrent Real-Time Pipeline\nSequence Diagram
+
+'PARTICIPANTS
+participant "main.py" as MAIN #1c2128
+participant "InputModule" as INPUT #1c2128
+participant "raw_q" as RAWQ #21262d
+participant "core_worker x4" as WORKER #1c2128
+participant "verified_q" as VERQ #21262d
+participant "StateAggregator" as AGG #1c2128
+participant "processed_q" as PROCQ #21262d
+participant "PipelineTelemetry" as TEL #1c2128
+participant "DashboardGUI" as GUI #1c2128
+
+'STARTUP(Setting up config, queues, GUI, telemetry, and start all processes)
+== Startup ==
+
+MAIN -> MAIN   : load_config() + validate_config()
+MAIN -> RAWQ   : mp.Queue(maxsize=50)
+MAIN -> VERQ   : mp.Queue(maxsize=50)
+MAIN -> PROCQ  : mp.Queue(maxsize=50)
+MAIN -> GUI    : DashboardGUI(queues, config)
+MAIN -> TEL    : PipelineTelemetry(queues, max_size)
+MAIN -> TEL    : attach(gui)
+note right of TEL
+  Observer pattern wired:
+  gui registered as observer
+end note
+MAIN -> INPUT  : Process.start()
+MAIN -> WORKER : Process.start() x4
+MAIN -> AGG    : Process.start()
+MAIN -> TEL    : start_telemetry_timer(0.5s)
+
+' INPUT(It will read CSV, clean data, map columns, and send rows to raw queue)
+== Input Stream ==
+
+INPUT -> INPUT : read_csv() → check_schema() → apply_schema()
+note right of INPUT
+  Maps source columns to
+  internal names + casts types
+end note
+
+INPUT -> RAWQ  : put(mapped_row) × N
+note right of RAWQ
+  put() blocks if full = backpressure
+end note
+
+INPUT -> RAWQ  : put(None) × 4
+note right of RAWQ #3fb950
+  Sentinels signal EOF
+  to each worker
+end note
+
+'CORE WORKERS(It process raw rows, verify signature, and put verified rows in queue)
+== Core Processing — Scatter Pattern ==
+
+WORKER -> RAWQ : get()
+
+alt row is None (sentinel)
+    WORKER -> WORKER : exit cleanly
+else valid row
+    WORKER -> WORKER : pbkdf2_hmac(key, raw_value, 100000)
+    alt signature matches
+        WORKER -> VERQ : put(verified_row)
+    else mismatch
+        WORKER -> WORKER : drop packet
+    end
+end
+
+' AGGREGATOR(It takes verified rows, compute running average, and send it to processed queue)
+== Aggregation — Gather + Functional Core ==
+
+AGG -> VERQ : get()
+
+alt row is None (sentinel)
+    AGG -> AGG : exit cleanly
+else valid row
+    AGG -> AGG : updated_window(window, value, size)
+    AGG -> AGG : compute_avg(window)
+    note right of AGG
+      Pure functions —
+      no side effects
+    end note
+    AGG -> PROCQ : put({entity, time, value, avg})
+end
+
+'OBSERVER TELEMETRY(It check queue sizes and push status to dashboard every interval)
+== Observer Pattern — Telemetry (every 500ms) ==
+
+TEL -> RAWQ  : safe_qsize()
+TEL -> VERQ  : safe_qsize()
+TEL -> PROCQ : safe_qsize()
+TEL -> TEL   : get_status() → Green / Yellow / Red
+TEL -> GUI   : update(state)
+note right of GUI
+  Observer update() stores
+  telemetry state dict
+end note
+
+' DASHBOARD(It reads processed rows and update charts on GUI)
+== Dashboard Render — every 200ms ==
+
+GUI -> GUI   : _apply_telemetry()
+GUI -> PROCQ : get_nowait() × 10 max
+GUI -> GUI   : _refresh_stats()
+GUI -> GUI   : draw_idle() — chart 1 (values)
+GUI -> GUI   : draw_idle() — chart 2 (running avg)
+
+'SHUTDOWN(Close GUI)
+== Shutdown ==
+
+GUI  -> MAIN : window closed
+MAIN -> INPUT  : terminate() + join()
+MAIN -> WORKER : terminate() + join() x4
+MAIN -> AGG    : terminate() + join()
+
+@enduml

@@ -1,0 +1,212 @@
+@startuml P3_Class_Diagram
+
+skinparam backgroundColor #0d1117
+skinparam classBackgroundColor #161b22
+skinparam classBorderColor #30363d
+skinparam classArrowColor #58a6ff
+skinparam classFontColor #e6edf3
+skinparam classFontName Consolas
+skinparam classAttributeFontColor #8b949e
+skinparam classStereotypeFontColor #8b949e
+skinparam noteFontColor #8b949e
+skinparam noteBackgroundColor #1c2128
+skinparam noteBorderColor #30363d
+skinparam titleFontColor #e6edf3
+skinparam titleFontSize 18
+
+title Phase 3 — Generic Concurrent Real-Time Pipeline\nClass Diagram
+
+'PROTOCOLS (DIP Contracts)
+package "core (contracts)" #1c2128 {
+
+    interface DataSink << Protocol >> {
+        + write(records: List[Dict]) : None
+    }
+
+    interface PipelineService << Protocol >> {
+        + process_packet(packet: Dict) : None
+    }
+
+    interface TelemetryObserver << Protocol >> {
+        + update(telemetry_data: Dict) : None
+    }
+}
+
+'INPUT MODULE(It reads and maps CSV data, filters rows, and pushes them into the pipeline)
+package "plugins (input)" #1c2128 {
+
+    class InputModule {
+        + {static} run(config: Dict, raw_q: Queue, raw_count: Value) : None
+    }
+
+    class InputHelpers << (F,#3fb950) Functions >> {
+        + build_schema_map(config: Dict) : Dict
+        + apply_schema(row: Dict, schema_map: Dict) : Dict
+        + cast_value(value: str, data_type: str) : Any
+        + check_schema_match(rows: List, schema_map: Dict) : bool
+        + get_valid_mapped_rows(path: str, schema_map: Dict) : List
+        + read_csv_rows(path: str) : List
+        + clean_all_rows(rows: List) : List
+        + filter_valid_rows(rows: List) : List
+        + enqueue_all_rows(rows: List, raw_q: Queue, ...) : None
+        + push_sentinels(raw_q: Queue, num_workers: int) : None
+        + is_complete_packet(packet: Dict) : bool
+    }
+
+    InputModule ..> InputHelpers : uses
+}
+
+'CORE MODULE(It processes raw rows, verifies them, computes aggregates, and generates output)
+package "core (engine)" #1c2128 {
+
+    class StateAggregator {
+        + {static} run(config: Dict, verified_q: Queue,\n  processed_q: Queue, processed_count: Value) : None
+    }
+
+    class CoreHelpers << (F,#3fb950) Functions >> {
+        + generate_signature(value: str, key: str, iterations: int) : str
+        + parse_verified_row(row: Dict, key: str, iterations: int) : Dict
+        + process_single_raw(raw_q, verified_q, key, iterations, count) : bool
+        + run_core_loop(raw_q, verified_q, key, iterations, count) : None
+        + core_worker(config: Dict, raw_q: Queue,\n  verified_q: Queue, verified_count: Value) : None
+        + updated_window(window: List, value: float, size: int) : List
+        + compute_avg(window: List) : float
+        + build_output_packet(row: Dict, value: float, window: List) : Dict
+        + aggregate_single(state: List, ...) : List
+        + run_aggregator_loop(verified_q, processed_q, size, count) : None
+        + to_float(raw: str) : float
+        + format_value(raw: str) : str
+        + extract_metric(row: Dict) : str
+        + signature_matches(val: str, row: Dict, key: str, iterations: int) : bool
+    }
+
+    StateAggregator ..> CoreHelpers : uses
+    CoreHelpers ..> DataSink : depends on
+}
+
+' TELEMETRY MODULE(It monitors queues and notifies observers (e.g. dashboard) with current status)
+package "telemetry (monitor)" #1c2128 {
+
+    class PipelineTelemetry {
+        - raw_q : Queue
+        - ver_q : Queue
+        - proc_q : Queue
+        - max_size : int
+        - observers : List
+        + attach(observer: TelemetryObserver) : None
+        + detach(observer: TelemetryObserver) : None
+        + notify() : None
+        + get_status(q_size: int) : str
+        + safe_qsize(q: Queue) : int
+    }
+
+    PipelineTelemetry ..|> TelemetryObserver : notifies
+    PipelineTelemetry o-- TelemetryObserver : observers
+}
+
+' GUI MODULE(It shows dashboard, charts, and telemetry updates)
+package "gui (dashboard)" #1c2128 {
+
+    class DashboardGUI {
+        - raw_q : Queue
+        - verified_q : Queue
+        - processed_q : Queue
+        - max_size : int
+        - raw_count : Value
+        - verified_count : Value
+        - processed_count : Value
+        - values : List
+        - avgs : List
+        - x_ticks : List
+        - _telemetry_state : Dict
+        - fig1 : Figure
+        - fig2 : Figure
+        - ax1 : Axes
+        - ax2 : Axes
+        - line1 : Line2D
+        - line2 : Line2D
+        + update(state: Dict) : None
+        + run() : None
+        - _update_cycle() : None
+        - _drain_processed_queue() : None
+        - _apply_telemetry() : None
+        - _refresh_stats() : None
+        - _refresh_clock() : None
+        - _redraw_chart(fig, ax, line, x, y) : None
+        - _update_queue_bar(bar, value) : None
+        - _build_header() : None
+        - _build_body() : None
+        - _build_stat_bar(parent) : None
+        - _build_chart_card(parent, ...) : None
+        - _build_log_card(parent) : None
+        - _build_telemetry_panel(parent) : None
+        - _style_axes(ax, color) : None
+        - _on_close() : None
+    }
+
+    DashboardGUI ..|> TelemetryObserver : implements
+}
+
+'UTILS(It provides general helper functions used across modules)
+package "utils" #1c2128 {
+    class Utils << (F,#3fb950) Functions >> {
+        + load_config(path: str) : Dict
+        + safe_cast(value: str, data_type: str) : Any
+        + clamp(value, min_val, max_val) : Any
+        + safe_ratio(numerator: float, denominator: float) : float
+        + format_float(value: float, decimals: int) : float
+    }
+}
+
+'MAIN ORCHESTRATOR(It starts processes, GUI, telemetry, and coordinates the pipeline)
+package "main" #1c2128 {
+
+    class Main << (M,#58a6ff) Orchestrator >> {
+        + load_config() : Dict
+        + validate_config(config: Dict) : None
+        + start_telemetry_timer(telemetry, interval) : None
+    }
+
+    Main ..> InputModule        : spawns Process
+    Main ..> CoreHelpers        : spawns core_worker Process
+    Main ..> StateAggregator    : spawns Process
+    Main ..> PipelineTelemetry  : instantiates Subject
+    Main ..> DashboardGUI       : instantiates Observer
+    Main ..> Utils              : uses
+}
+
+'MULTIPROCESSING QUEUES(Queues used to communicate between processes)
+package "multiprocessing" #1c2128 {
+
+    class Queue_raw << (Q,#9e6a03) mp.Queue >> {
+        maxsize = 50
+        + put(row: Dict) : None
+        + get() : Dict
+    }
+
+    class Queue_verified << (Q,#9e6a03) mp.Queue >> {
+        maxsize = 50
+        + put(row: Dict) : None
+        + get() : Dict
+    }
+
+    class Queue_processed << (Q,#9e6a03) mp.Queue >> {
+        maxsize = 50
+        + put(packet: Dict) : None
+        + get_nowait() : Dict
+    }
+}
+
+'QUEUE CONNECTIONS
+InputModule    --> Queue_raw       : put(mapped_row)
+CoreHelpers    --> Queue_raw       : get()
+CoreHelpers    --> Queue_verified  : put(verified_row)
+StateAggregator --> Queue_verified : get()
+StateAggregator --> Queue_processed : put(packet)
+DashboardGUI   --> Queue_processed : get_nowait()
+
+PipelineTelemetry --> Queue_raw       : qsize()
+PipelineTelemetry --> Queue_verified  : qsize()
+PipelineTelemetry --> Queue_processed : qsize()
+
+@enduml
