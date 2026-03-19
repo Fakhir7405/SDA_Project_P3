@@ -31,7 +31,7 @@ participant "processed_q" as PROCQ #21262d
 participant "PipelineTelemetry" as TEL #1c2128
 participant "DashboardGUI" as GUI #1c2128
 
-'STARTUP(Setting up config, queues, GUI, telemetry, and start all processes)
+'STARTUP(Setting up config, queues, GUI, telemetry, and start all processes.)
 == Startup ==
 
 MAIN -> MAIN   : load_config() + validate_config()
@@ -50,7 +50,7 @@ MAIN -> WORKER : Process.start() x4
 MAIN -> AGG    : Process.start()
 MAIN -> TEL    : start_telemetry_timer(0.5s)
 
-' INPUT(It will read CSV, clean data, map columns, and send rows to raw queue)
+' INPUT(It will read CSV, clean data, map columns, and send rows to raw queue.)
 == Input Stream ==
 
 INPUT -> INPUT : read_csv() → check_schema() → apply_schema()
@@ -70,7 +70,7 @@ note right of RAWQ #3fb950
   to each worker
 end note
 
-'CORE WORKERS(It process raw rows, verify signature, and put verified rows in queue)
+'CORE WORKERS(It process raw rows, verify signature, and put verified rows in queue.)
 == Core Processing — Scatter Pattern ==
 
 WORKER -> RAWQ : get()
@@ -86,7 +86,7 @@ else valid row
     end
 end
 
-' AGGREGATOR(It takes verified rows, compute running average, and send it to processed queue)
+' AGGREGATOR(It takes verified rows, compute running average, and send it to processed queue.)
 == Aggregation — Gather + Functional Core ==
 
 AGG -> VERQ : get()
@@ -103,7 +103,7 @@ else valid row
     AGG -> PROCQ : put({entity, time, value, avg})
 end
 
-'OBSERVER TELEMETRY(It check queue sizes and push status to dashboard every interval)
+'OBSERVER TELEMETRY(It check queue sizes and push status to dashboard every interval.)
 == Observer Pattern — Telemetry (every 500ms) ==
 
 TEL -> RAWQ  : safe_qsize()
@@ -116,7 +116,7 @@ note right of GUI
   telemetry state dict
 end note
 
-' DASHBOARD(It reads processed rows and update charts on GUI)
+' DASHBOARD(It reads processed rows and update charts on GUI.)
 == Dashboard Render — every 200ms ==
 
 GUI -> GUI   : _apply_telemetry()
@@ -125,7 +125,7 @@ GUI -> GUI   : _refresh_stats()
 GUI -> GUI   : draw_idle() — chart 1 (values)
 GUI -> GUI   : draw_idle() — chart 2 (running avg)
 
-'SHUTDOWN(Close GUI)
+'SHUTDOWN(Close GUI.)
 == Shutdown ==
 
 GUI  -> MAIN : window closed
