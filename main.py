@@ -94,7 +94,7 @@ def validate_config(config):
 #Telemetry Timer
 # It will keep checking the system in the background and tell the dashboard about what is happening.
 def start_telemetry_timer(telemetry, interval=0.5):
-    #This function will start a background thread that regularly tells telemetry to update the dashboard.
+ #This function will start a background thread that regularly tells telemetry to update the dashboard.
     def tick():
         try:
             telemetry.notify()
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     verified_count  = mp.Value("i", 0)
     processed_count = mp.Value("i", 0)
 
-    # Firstly dashboard is created so that it can receive updates from telemetry.
+    # Firstly dashboard is created so that it can receive updates from the telemetry.
     gui = DashboardGUI(
         raw_q, verified_q, processed_q, max_size,
         raw_count, verified_count, processed_count,
@@ -185,4 +185,4 @@ if __name__ == "__main__":
     list(map(lambda w: w.join(timeout=3), workers))
     aggregator.join(timeout=3)
 
-    print("[Main] All processes terminated. Goodbye.")
+    print("[Main] All processes terminated. Goodbye..")
