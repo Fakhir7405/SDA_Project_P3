@@ -14,15 +14,15 @@ class DataSink(Protocol):
 
 
 class PipelineService(Protocol):
-# This PipelineService is used by the Input part to send data to the Core.
-# The Core uses this method, so that the Input does not need to know about Core directly.
+ # This PipelineService is used by the Input part to send data to the Core.
+  # The Core uses this method, so that the Input does not need to know about Core directly.
     def process_packet(self, packet: Dict[str, Any]) -> None:
         ...
 
 
 class TelemetryObserver(Protocol):
 # This means any kind of class that wants to get updates must utilize this method.
-# For example, DashboardGUI uses it to receive data.
-# This method is called when new data is available.
+ # For example, DashboardGUI uses it to receive data.
+# This method is called when new data is available..
     def update(self, telemetry_data: Dict[str, Any]) -> None:
         ...
