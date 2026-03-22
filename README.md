@@ -1,5 +1,5 @@
 Phase 3 - Generic Concurrent Real-Time Data Pipeline
-=====================================================
+
 
 HOW TO RUN
 ----------
@@ -123,7 +123,7 @@ Window size effect:
 
 
 COMMON ERRORS
--------------
+--------------
 ModuleNotFoundError: No module named 'matplotlib'
   -> pip install matplotlib
 
@@ -143,3 +143,26 @@ Charts empty, Total Verified = 0
 
 Queue bars not showing expected colors
   -> Run find_my_timings.py first to get the right values for your machine.
+
+  
+
+  Why the Verified Queue always shows 0%
+----------------------------------------
+One thing that might look strange during the demo is that the Verified
+Queue bar stays at 0% the whole time even though data is clearly flowing.
+This is not a bug.
+ 
+What happens is that the hashing takes long enough that by the time a
+worker finishes verifying a row and puts it in the verified queue, the
+Aggregator is already waiting and picks it up straight away. The whole
+thing happens so fast that our dashboard (which only refreshes every
+200ms) never gets a chance to catch anything sitting in that queue.
+ 
+The proof that it is actually working is in the counters. If you watch
+Total Verified go up and Total Processed match it, the verified queue
+is doing its job fine. The charts drawing live data also confirms it.
+ 
+The Raw Queue is the one you will see fill up and go red. That is where
+the backpressure happens because input is pushing rows faster than the
+workers can hash them, which is exactly what the project is supposed
+to demonstrate.
