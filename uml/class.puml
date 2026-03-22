@@ -16,7 +16,7 @@ skinparam titleFontSize 18
 
 title Phase 3 — Generic Concurrent Real-Time Pipeline\nClass Diagram
 
-'PROTOCOLS (DIP Contracts)
+' PROTOCOLS 
 package "core (contracts)" #1c2128 {
 
     interface DataSink << Protocol >> {
@@ -32,7 +32,7 @@ package "core (contracts)" #1c2128 {
     }
 }
 
-'INPUT MODULE(It reads and maps CSV data, filters rows, and pushes them into the pipeline)
+'  INPUT MODULE
 package "plugins (input)" #1c2128 {
 
     class InputModule {
@@ -56,7 +56,7 @@ package "plugins (input)" #1c2128 {
     InputModule ..> InputHelpers : uses
 }
 
-'CORE MODULE(It processes raw rows, verifies them, computes aggregates, and generates output)
+'CORE MODULE 
 package "core (engine)" #1c2128 {
 
     class StateAggregator {
@@ -84,7 +84,7 @@ package "core (engine)" #1c2128 {
     CoreHelpers ..> DataSink : depends on
 }
 
-' TELEMETRY MODULE(It monitors queues and notifies observers (e.g. dashboard) with current status)
+'  TELEMETRY MODULE 
 package "telemetry (monitor)" #1c2128 {
 
     class PipelineTelemetry {
@@ -104,7 +104,7 @@ package "telemetry (monitor)" #1c2128 {
     PipelineTelemetry o-- TelemetryObserver : observers
 }
 
-' GUI MODULE(It shows dashboard, charts, and telemetry updates)
+' GUI MODULE 
 package "gui (dashboard)" #1c2128 {
 
     class DashboardGUI {
@@ -135,19 +135,19 @@ package "gui (dashboard)" #1c2128 {
         - _redraw_chart(fig, ax, line, x, y) : None
         - _update_queue_bar(bar, value) : None
         - _build_header() : None
-        - _build_body() : None
-        - _build_stat_bar(parent) : None
-        - _build_chart_card(parent, ...) : None
-        - _build_log_card(parent) : None
+        - _build_stat_bar() : None
+        - _build_main_area() : None
+        - _build_chart(parent, ...) : None
         - _build_telemetry_panel(parent) : None
-        - _style_axes(ax, color) : None
+        - _build_queue_card(parent, ...) : None
+        - _style_axes(ax) : None
         - _on_close() : None
     }
 
     DashboardGUI ..|> TelemetryObserver : implements
 }
 
-'UTILS(It provides general helper functions used across modules)
+' UTILS 
 package "utils" #1c2128 {
     class Utils << (F,#3fb950) Functions >> {
         + load_config(path: str) : Dict
@@ -158,7 +158,7 @@ package "utils" #1c2128 {
     }
 }
 
-'MAIN ORCHESTRATOR(It starts processes, GUI, telemetry, and coordinates the pipeline)
+' MAIN ORCHESTRATOR 
 package "main" #1c2128 {
 
     class Main << (M,#58a6ff) Orchestrator >> {
@@ -167,15 +167,15 @@ package "main" #1c2128 {
         + start_telemetry_timer(telemetry, interval) : None
     }
 
-    Main ..> InputModule        : spawns Process
-    Main ..> CoreHelpers        : spawns core_worker Process
-    Main ..> StateAggregator    : spawns Process
-    Main ..> PipelineTelemetry  : instantiates Subject
-    Main ..> DashboardGUI       : instantiates Observer
-    Main ..> Utils              : uses
+    Main ..> InputModule       : spawns Process
+    Main ..> CoreHelpers       : spawns core_worker Process
+    Main ..> StateAggregator   : spawns Process
+    Main ..> PipelineTelemetry : instantiates Subject
+    Main ..> DashboardGUI      : instantiates Observer
+    Main ..> Utils             : uses
 }
 
-'MULTIPROCESSING QUEUES(Queues used to communicate between processes)
+'  MULTIPROCESSING QUEUES
 package "multiprocessing" #1c2128 {
 
     class Queue_raw << (Q,#9e6a03) mp.Queue >> {
@@ -197,13 +197,13 @@ package "multiprocessing" #1c2128 {
     }
 }
 
-'QUEUE CONNECTIONS
-InputModule    --> Queue_raw       : put(mapped_row)
-CoreHelpers    --> Queue_raw       : get()
-CoreHelpers    --> Queue_verified  : put(verified_row)
-StateAggregator --> Queue_verified : get()
+'  QUEUE CONNECTIONS
+InputModule     --> Queue_raw       : put(mapped_row)
+CoreHelpers     --> Queue_raw       : get()
+CoreHelpers     --> Queue_verified  : put(verified_row)
+StateAggregator --> Queue_verified  : get()
 StateAggregator --> Queue_processed : put(packet)
-DashboardGUI   --> Queue_processed : get_nowait()
+DashboardGUI    --> Queue_processed : get_nowait()
 
 PipelineTelemetry --> Queue_raw       : qsize()
 PipelineTelemetry --> Queue_verified  : qsize()
