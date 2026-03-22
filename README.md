@@ -32,7 +32,7 @@ plugins/
   inputs.py          - reads CSV, maps column names, casts types
 
 core/
-  engine.py          - signature verification + sliding window average
+  engine.py          - signature verification + sliding window average,
   contracts.py       - abstract protocols (DIP)
 
 gui/
