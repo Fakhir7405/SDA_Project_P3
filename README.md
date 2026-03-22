@@ -144,9 +144,9 @@ Charts empty, Total Verified = 0
 Queue bars not showing expected colors
   -> Run find_my_timings.py first to get the right values for your machine.
 
-  
 
-  Why the Verified Queue always shows 0%
+
+Why the Verified Queue always shows 0%
 ----------------------------------------
 One thing that might look strange during the demo is that the Verified
 Queue bar stays at 0% the whole time even though data is clearly flowing.
